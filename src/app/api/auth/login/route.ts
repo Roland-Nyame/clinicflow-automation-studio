@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = createSessionToken(user.id);
+    const token = createSessionToken(user);
     const res = NextResponse.json({
       user,
       automationEngine: "ClinicFlow Core v4.2",

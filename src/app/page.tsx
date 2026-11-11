@@ -516,17 +516,17 @@ export default function ClinicFlowStudio() {
             >
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Email Address
+                  Email or Username
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
-                    type="email"
+                    type="text"
                     required
-                    autoComplete="email"
+                    autoComplete="username"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="Enter your email address"
+                    placeholder="Enter your email or username"
                     className="w-full bg-slate-950/90 border border-slate-800 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-[#ff6d5a] focus:ring-2 focus:ring-[#ff6d5a]/15 transition"
                   />
                 </div>
