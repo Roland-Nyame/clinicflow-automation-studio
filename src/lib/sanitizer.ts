@@ -294,6 +294,11 @@ const NODE_TYPE_MAPPING: Record<
     category: "crm",
     icon: "Calendar",
   },
+  googlesheetstrigger: {
+    label: "Google Sheets Trigger",
+    category: "trigger",
+    icon: "Table",
+  },
   googlesheets: {
     label: "Google Sheets",
     category: "database",
@@ -308,6 +313,21 @@ const NODE_TYPE_MAPPING: Record<
     label: "Google Drive",
     category: "database",
     icon: "FileText",
+  },
+  noop: {
+    label: "No Operation, do nothing",
+    category: "logic",
+    icon: "Sliders",
+  },
+  summarize: {
+    label: "Summarize",
+    category: "logic",
+    icon: "Sliders",
+  },
+  datatable: {
+    label: "Data Table",
+    category: "database",
+    icon: "Table",
   },
   twilio: {
     label: "Twilio",
@@ -574,7 +594,7 @@ function normalizePositions(rawNodes: RawN8nNode[]): Array<[number, number]> {
   const xs = rawNodes.map((n, i) =>
     Array.isArray(n.position) && typeof n.position[0] === "number"
       ? n.position[0]
-      : i * 260
+      : i * 240
   );
   const ys = rawNodes.map((n) =>
     Array.isArray(n.position) && typeof n.position[1] === "number"
@@ -585,10 +605,24 @@ function normalizePositions(rawNodes: RawN8nNode[]): Array<[number, number]> {
   const minX = Math.min(...xs);
   const minY = Math.min(...ys);
 
-  return rawNodes.map((_, i) => [
-    Math.round((xs[i] - minX) * 1.22 + 70),
-    Math.round((ys[i] - minY) * 1.1 + 70),
+  const coords: Array<[number, number]> = rawNodes.map((_, i) => [
+    Math.round(xs[i] - minX + 100),
+    Math.round(ys[i] - minY + 100),
   ]);
+
+  // Prevent exact coordinate collisions if two nodes in n8n were placed on the same spot
+  for (let i = 0; i < coords.length; i++) {
+    for (let j = 0; j < i; j++) {
+      if (
+        Math.abs(coords[i][0] - coords[j][0]) < 45 &&
+        Math.abs(coords[i][1] - coords[j][1]) < 45
+      ) {
+        coords[i] = [coords[i][0], coords[j][1] + 115];
+      }
+    }
+  }
+
+  return coords;
 }
 
 /**
@@ -664,15 +698,23 @@ export function sanitizeN8nWorkflow(
             const targetId = nameToIdMap.get(targetConn.node);
             if (targetId) {
               let label: string | undefined;
+              const sourceNodeObj = nodes.find((n) => n.id === sourceId);
+              const isIfSource =
+                sourceNodeObj?.typeLabel.toLowerCase() === "if" ||
+                sourceName.toLowerCase().startsWith("if");
               if (isAiModel) label = "Model";
               else if (isAiMemory) label = "Memory";
               else if (isAiTool) label = "Tools";
               else if (branches.length > 1) {
                 label =
                   branchIdx === 0
-                    ? "Branch 1"
+                    ? isIfSource
+                      ? "true"
+                      : "Branch 1"
                     : branchIdx === 1
-                    ? "Branch 2"
+                    ? isIfSource
+                      ? "false"
+                      : "Branch 2"
                     : `Path ${branchIdx + 1}`;
               }
 

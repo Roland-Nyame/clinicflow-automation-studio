@@ -47,10 +47,15 @@ interface PortalDatabase {
   };
 }
 
+const BUNDLED_DB_FILE = path.join(process.cwd(), "data", "portal-db.json");
 const DATA_DIR = process.env.VERCEL
   ? path.join("/tmp", "clinicflow-data")
   : path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "portal-db.json");
+
+const DEFAULT_N8N_URL = "https://n8n.srv1163909.hstgr.cloud";
+const DEFAULT_N8N_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZjZjZmYzMi01YjNkLTQxNjItYjJmYy00NzdhY2I1YTM5MTYiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiZjE0MmI1NTUtZGQ2Mi00ZmQ4LWIxYjQtNzY1ZWIxZmE3ZWE0IiwiaWF0IjoxNzkyMDU2NTIxfQ.F2UFr1L3tkn_boIWu2cuu4LbFAUADQYkzJ_XrOhLVhA";
 
 const PALETTE_COLORS = [
   "#0ea5e9",
@@ -68,6 +73,26 @@ function ensureDb(): PortalDatabase {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     if (!fs.existsSync(DB_FILE)) {
+      // On Vercel cold start, copy from bundled data/portal-db.json if available
+      if (DB_FILE !== BUNDLED_DB_FILE && fs.existsSync(BUNDLED_DB_FILE)) {
+        const bundledRaw = fs.readFileSync(BUNDLED_DB_FILE, "utf-8");
+        const bundledParsed = JSON.parse(bundledRaw) as PortalDatabase;
+        bundledParsed.engineSettings.engineUrl =
+          process.env.N8N_BASE_URL ||
+          bundledParsed.engineSettings.engineUrl ||
+          DEFAULT_N8N_URL;
+        bundledParsed.engineSettings.rawApiKey =
+          process.env.N8N_API_KEY ||
+          bundledParsed.engineSettings.rawApiKey ||
+          DEFAULT_N8N_KEY;
+        fs.writeFileSync(
+          DB_FILE,
+          JSON.stringify(bundledParsed, null, 2),
+          "utf-8"
+        );
+        return bundledParsed;
+      }
+
       const initial: PortalDatabase = {
         clinics: INITIAL_CLINICS,
         users: INITIAL_USERS,
@@ -77,8 +102,9 @@ function ensureDb(): PortalDatabase {
         workflowClinicOverrides: {},
         engineSettings: {
           ...INITIAL_ENGINE_SETTINGS,
-          rawApiKey: process.env.N8N_API_KEY || "",
-          liveConnected: false,
+          engineUrl: process.env.N8N_BASE_URL || DEFAULT_N8N_URL,
+          rawApiKey: process.env.N8N_API_KEY || DEFAULT_N8N_KEY,
+          liveConnected: true,
           lastError: null,
         },
       };
@@ -93,12 +119,13 @@ function ensureDb(): PortalDatabase {
     if (!parsed.knowledgeBases) {
       parsed.knowledgeBases = INITIAL_KNOWLEDGE_BASES;
     }
-    // Always pick up latest env vars if set in .env.local
-    if (process.env.N8N_BASE_URL && !parsed.engineSettings.engineUrl) {
-      parsed.engineSettings.engineUrl = process.env.N8N_BASE_URL;
+    if (!parsed.engineSettings.engineUrl || parsed.engineSettings.engineUrl === "http://localhost:5678") {
+      parsed.engineSettings.engineUrl =
+        process.env.N8N_BASE_URL || DEFAULT_N8N_URL;
     }
-    if (process.env.N8N_API_KEY && !parsed.engineSettings.rawApiKey) {
-      parsed.engineSettings.rawApiKey = process.env.N8N_API_KEY;
+    if (!parsed.engineSettings.rawApiKey) {
+      parsed.engineSettings.rawApiKey =
+        process.env.N8N_API_KEY || DEFAULT_N8N_KEY;
     }
     return parsed;
   } catch {
@@ -111,8 +138,9 @@ function ensureDb(): PortalDatabase {
       workflowClinicOverrides: {},
       engineSettings: {
         ...INITIAL_ENGINE_SETTINGS,
-        rawApiKey: process.env.N8N_API_KEY || "",
-        liveConnected: false,
+        engineUrl: process.env.N8N_BASE_URL || DEFAULT_N8N_URL,
+        rawApiKey: process.env.N8N_API_KEY || DEFAULT_N8N_KEY,
+        liveConnected: true,
         lastError: null,
       },
     };
@@ -198,8 +226,13 @@ function ensureAutoDiscoveredClinic(
 function resolveClinicForN8nWorkflow(
   db: PortalDatabase,
   rawWf: RawN8nWorkflow
-): Clinic {
+): Clinic | null {
   const wfIdStr = String(rawWf.id);
+
+  // Skip empty 0-node scratch workflows
+  if (!Array.isArray(rawWf.nodes) || rawWf.nodes.length === 0) {
+    return null;
+  }
 
   // 1. Check explicit admin assignment
   const overrideClinicId = db.workflowClinicOverrides[wfIdStr];
@@ -208,14 +241,13 @@ function resolveClinicForN8nWorkflow(
     if (found) return found;
   }
 
-  // 2. Check n8n workflow tags
+  // 2. Check n8n workflow tags against existing clinics
   if (Array.isArray(rawWf.tags) && rawWf.tags.length > 0) {
     for (const tag of rawWf.tags) {
       const tagName = (tag.name || "").trim();
       if (!tagName) continue;
       const lowerTag = tagName.toLowerCase();
 
-      // Match existing clinic by automationTag, slug, or name
       const matchedExisting = db.clinics.find(
         (c) =>
           c.automationTag.toLowerCase() === lowerTag ||
@@ -223,16 +255,10 @@ function resolveClinicForN8nWorkflow(
           c.name.toLowerCase().includes(lowerTag.replace(/^clinic:/, ""))
       );
       if (matchedExisting) return matchedExisting;
-
-      // Auto-create clinic if tag is formatted or represents a clinic name
-      return ensureAutoDiscoveredClinic(
-        db,
-        tagName.replace(/^clinic:/i, "").trim()
-      );
     }
   }
 
-  // 3. Check workflow name against existing clinics (e.g. "Prodent", "Apex", "SmileCare")
+  // 3. Check workflow name against existing clinics (Prodent, Omabod, BusyBite / Busy Bite, Reign Dental, etc.)
   const wfName = (rawWf.name || "").trim();
   const lowerName = wfName.toLowerCase();
 
@@ -249,58 +275,7 @@ function resolveClinicForN8nWorkflow(
     }
   }
 
-  // 3b. Check node names and node parameters (e.g. AI Agent systemMessage) for clinic name/slug
-  if (Array.isArray(rawWf.nodes) && rawWf.nodes.length > 0) {
-    const nodesBlob = JSON.stringify(rawWf.nodes).toLowerCase();
-    for (const clinic of db.clinics) {
-      const slugLower = clinic.slug.toLowerCase();
-      if (
-        nodesBlob.includes(slugLower) ||
-        nodesBlob.includes(clinic.name.toLowerCase()) ||
-        (slugLower === "busybite" && nodesBlob.includes("busy bite"))
-      ) {
-        return clinic;
-      }
-    }
-  }
-
-  // 4. Check if workflow name has a prefix like "[ClinicName] WhatsApp" or "ClinicName - Facebook Agent"
-  const bracketMatch = wfName.match(/^\[([^\]]+)\]/);
-  if (bracketMatch && bracketMatch[1]) {
-    return ensureAutoDiscoveredClinic(db, bracketMatch[1]);
-  }
-
-  const dashParts = wfName.split(/\s*[-–—:|]\s*/);
-  if (dashParts.length >= 2) {
-    const candidate = dashParts[0].trim();
-    const genericWords = [
-      "whatsapp",
-      "facebook",
-      "instagram",
-      "telegram",
-      "ai",
-      "agent",
-      "workflow",
-      "my",
-      "test",
-      "copy",
-      "new",
-      "lead",
-      "patient",
-      "appointment",
-      "webhook",
-    ];
-    if (
-      candidate.length >= 3 &&
-      candidate.length <= 28 &&
-      !genericWords.includes(candidate.toLowerCase())
-    ) {
-      return ensureAutoDiscoveredClinic(db, candidate);
-    }
-  }
-
-  // Default fallback to Prodent if no tag or prefix matched
-  return db.clinics[0];
+  return null;
 }
 
 /**
@@ -364,33 +339,7 @@ export async function syncDirectlyFromN8n(): Promise<{
       ? wfBody
       : [];
 
-    // Ensure every workflow has its full `nodes` and `connections` array fetched from n8n
-    const rawWorkflows: RawN8nWorkflow[] = await Promise.all(
-      listedWorkflows.map(async (item) => {
-        if (Array.isArray(item.nodes) && item.nodes.length > 0 && item.connections) {
-          return item;
-        }
-        try {
-          const detailRes = await fetch(
-            `${cleanBase}/api/v1/workflows/${encodeURIComponent(String(item.id))}`,
-            {
-              headers: {
-                "X-N8N-API-KEY": activeKey,
-                Accept: "application/json",
-              },
-              cache: "no-store",
-            }
-          );
-          if (detailRes.ok) {
-            const detailJson = await detailRes.json();
-            return (detailJson?.data || detailJson) as RawN8nWorkflow;
-          }
-        } catch {
-          // Fallback to list item if detail call fails
-        }
-        return item;
-      })
-    );
+    const rawWorkflows: RawN8nWorkflow[] = listedWorkflows;
 
     // Also fetch recent executions from live n8n
     let rawExecutions: RawN8nExecution[] = [];
@@ -419,6 +368,7 @@ export async function syncDirectlyFromN8n(): Promise<{
 
     for (const rawWf of rawWorkflows) {
       const clinic = resolveClinicForN8nWorkflow(db, rawWf);
+      if (!clinic) continue;
       const sanitized = sanitizeN8nWorkflow(rawWf, clinic.id);
 
       const clinicRawList = rawWfsByClinicId.get(clinic.id) || [];
@@ -444,6 +394,21 @@ export async function syncDirectlyFromN8n(): Promise<{
       liveSanitizedWorkflows.push(sanitized);
       wfByExternalId.set(String(rawWf.id), sanitized);
     }
+
+    // Sort so active primary Chat Agent workflows come first for each clinic
+    liveSanitizedWorkflows.sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      const aIsMainChat =
+        a.name.toLowerCase().includes("chat agent") &&
+        !a.name.toLowerCase().includes("follow-up") &&
+        !a.name.toLowerCase().includes("katamanso");
+      const bIsMainChat =
+        b.name.toLowerCase().includes("chat agent") &&
+        !b.name.toLowerCase().includes("follow-up") &&
+        !b.name.toLowerCase().includes("katamanso");
+      if (aIsMainChat !== bIsMainChat) return aIsMainChat ? -1 : 1;
+      return b.nodes.length - a.nodes.length;
+    });
 
     // Replace workflows with the live n8n workflows if at least 1 workflow exists in n8n
     if (liveSanitizedWorkflows.length > 0) {

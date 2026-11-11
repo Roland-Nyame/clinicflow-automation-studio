@@ -713,7 +713,8 @@ export const INITIAL_EXECUTIONS: WorkflowExecution[] = INITIAL_CLINICS.flatMap(
 );
 
 export const INITIAL_ENGINE_SETTINGS: EngineSettings = {
-  engineUrl: process.env.N8N_BASE_URL || "http://localhost:5678",
+  engineUrl:
+    process.env.N8N_BASE_URL || "https://n8n.srv1163909.hstgr.cloud",
   apiKeyConfigured: Boolean(process.env.N8N_API_KEY),
   apiKeyMasked: process.env.N8N_API_KEY
     ? "••••••••••••"

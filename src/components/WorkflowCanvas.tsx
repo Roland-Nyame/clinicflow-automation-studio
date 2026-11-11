@@ -566,9 +566,95 @@ export default function WorkflowCanvas({
     await submitLiveChatPrompt(chatInput);
   };
 
-  const MAIN_NODE_WIDTH = 200;
-  const MAIN_NODE_HEIGHT = 86;
+  const AI_AGENT_WIDTH = 220;
+  const AI_AGENT_HEIGHT = 92;
+  const SQUARE_NODE_SIZE = 96;
   const SUB_NODE_SIZE = 74;
+
+  const isNodeAiAgent = (node: WhiteLabelNode) => {
+    const isSub = subNodeEdgeBySource.has(node.id);
+    if (isSub) return false;
+    const tl = node.typeLabel.toLowerCase();
+    return (
+      tl.includes("agent") ||
+      tl.includes("chain") ||
+      node.icon === "Bot"
+    );
+  };
+
+  const getNodeWidth = (node: WhiteLabelNode) =>
+    subNodeEdgeBySource.has(node.id)
+      ? SUB_NODE_SIZE
+      : isNodeAiAgent(node)
+      ? AI_AGENT_WIDTH
+      : SQUARE_NODE_SIZE;
+
+  const getNodeHeight = (node: WhiteLabelNode) =>
+    subNodeEdgeBySource.has(node.id)
+      ? SUB_NODE_SIZE
+      : isNodeAiAgent(node)
+      ? AI_AGENT_HEIGHT
+      : SQUARE_NODE_SIZE;
+
+  const maxNodeX = workflow.nodes.reduce(
+    (max, n) => Math.max(max, (n.position?.[0] || 0) + 320),
+    1800
+  );
+  const maxNodeY = workflow.nodes.reduce(
+    (max, n) => Math.max(max, (n.position?.[1] || 0) + 260),
+    950
+  );
+
+  const triggerNodes = workflow.nodes.filter((n) => n.category === "trigger");
+
+  const focusOnNode = (targetNode: WhiteLabelNode, targetZoom = 0.85) => {
+    setZoom(targetZoom);
+    setPan({
+      x: Math.round(90 - targetNode.position[0] * targetZoom),
+      y: Math.round(180 - targetNode.position[1] * targetZoom),
+    });
+  };
+
+  const fitAllNodesInView = () => {
+    if (workflow.nodes.length === 0) return;
+    const xs = workflow.nodes.map((n) => n.position[0]);
+    const ys = workflow.nodes.map((n) => n.position[1]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs) + 220;
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys) + 180;
+    const spanX = Math.max(600, maxX - minX);
+    const spanY = Math.max(400, maxY - minY);
+    const fitZoom = Math.max(
+      0.24,
+      Math.min(0.95, Math.min(1120 / spanX, 560 / spanY))
+    );
+    setZoom(+fitZoom.toFixed(2));
+    setPan({
+      x: Math.round(45 - minX * fitZoom),
+      y: Math.round(55 - minY * fitZoom),
+    });
+  };
+
+  // Auto-focus on the primary trigger flow whenever the selected workflow changes
+  useEffect(() => {
+    if (workflow.nodes.length === 0) return;
+    const primaryTrigger =
+      workflow.nodes.find(
+        (n) =>
+          n.category === "trigger" &&
+          n.name.toLowerCase().includes("whatsapp")
+      ) ||
+      workflow.nodes.find((n) => n.category === "trigger") ||
+      workflow.nodes[0];
+
+    if (workflow.nodes.length <= 20) {
+      fitAllNodesInView();
+    } else if (primaryTrigger) {
+      focusOnNode(primaryTrigger, 0.82);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflow.id]);
 
   const inspectingNode = workflow.nodes.find((n) => n.id === inspectingNodeId);
   const inspectingStepLog = latestStepLogs.find(
@@ -598,6 +684,53 @@ export default function WorkflowCanvas({
           }}
         />
 
+        {/* Top-Left Trigger Flow & Exact Node Navigator Bar */}
+        <div
+          data-node-interactive="true"
+          className="absolute top-3.5 left-4 z-20 flex flex-wrap items-center gap-1.5 max-w-[82%]"
+        >
+          {triggerNodes.map((trig) => (
+            <button
+              key={trig.id}
+              type="button"
+              onClick={() => focusOnNode(trig, 0.85)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e2230]/95 hover:bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700/90 shadow-lg transition cursor-pointer"
+              title={`Center canvas on ${trig.name}`}
+            >
+              <Zap className="w-3 h-3 text-orange-400 fill-current shrink-0" />
+              <span className="truncate max-w-[160px]">{trig.name}</span>
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={fitAllNodesInView}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/95 hover:bg-slate-700 text-[11px] font-semibold text-sky-300 border border-sky-500/30 shadow-lg transition cursor-pointer"
+            title="Fit all nodes in workflow onto screen"
+          >
+            <Maximize2 className="w-3 h-3" />
+            Fit All ({workflow.nodes.length} nodes)
+          </button>
+
+          <select
+            value=""
+            onChange={(e) => {
+              const target = workflow.nodes.find((n) => n.id === e.target.value);
+              if (target) {
+                focusOnNode(target, 0.9);
+              }
+            }}
+            className="px-2.5 py-1.5 rounded-lg bg-[#1e2230]/95 hover:bg-slate-800 text-[11px] font-medium text-slate-200 border border-slate-700/90 shadow-lg focus:outline-none cursor-pointer max-w-[210px]"
+          >
+            <option value="">Jump to exact node ({workflow.nodes.length})...</option>
+            {workflow.nodes.map((n, idx) => (
+              <option key={n.id} value={n.id}>
+                {idx + 1}. {n.name} ({n.typeLabel})
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Top-Right Floating '+' Add Node Button (exact n8n placement) */}
         <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
           <button
@@ -618,8 +751,10 @@ export default function WorkflowCanvas({
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: "0 0",
+            width: `${maxNodeX}px`,
+            height: `${maxNodeY}px`,
           }}
-          className="relative w-[1800px] h-[900px]"
+          className="relative"
         >
           {/* SVG Connection Edges Layer */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
@@ -649,22 +784,30 @@ export default function WorkflowCanvas({
                 startY = sourceNode.position[1];
                 const portOffset =
                   edge.label === "Model"
-                    ? 40
+                    ? 45
                     : edge.label === "Memory"
                     ? 110
-                    : 180;
+                    : 175;
                 endX = targetNode.position[0] + portOffset;
-                endY = targetNode.position[1] + MAIN_NODE_HEIGHT + 8;
+                endY = targetNode.position[1] + getNodeHeight(targetNode) + 8;
                 const deltaY = Math.max(35, Math.abs(startY - endY) * 0.5);
                 pathData = `M ${startX} ${startY} C ${startX} ${
                   startY - deltaY
                 }, ${endX} ${endY + deltaY}, ${endX} ${endY}`;
               } else {
-                startX = sourceNode.position[0] + MAIN_NODE_WIDTH;
-                startY = sourceNode.position[1] + MAIN_NODE_HEIGHT / 2;
+                const srcW = getNodeWidth(sourceNode);
+                const srcH = getNodeHeight(sourceNode);
+                const tgtH = getNodeHeight(targetNode);
+                startX = sourceNode.position[0] + srcW;
+                startY =
+                  edge.label === "true"
+                    ? sourceNode.position[1] + srcH * 0.34
+                    : edge.label === "false"
+                    ? sourceNode.position[1] + srcH * 0.68
+                    : sourceNode.position[1] + srcH / 2;
                 endX = targetNode.position[0];
-                endY = targetNode.position[1] + MAIN_NODE_HEIGHT / 2;
-                const deltaX = Math.max(65, Math.abs(endX - startX) * 0.48);
+                endY = targetNode.position[1] + tgtH / 2;
+                const deltaX = Math.max(55, Math.abs(endX - startX) * 0.45);
                 pathData = `M ${startX} ${startY} C ${
                   startX + deltaX
                 } ${startY}, ${endX - deltaX} ${endY}, ${endX} ${endY}`;
@@ -768,10 +911,12 @@ export default function WorkflowCanvas({
             const subEdge = subNodeEdgeBySource.get(node.id);
             const isSubNode = Boolean(subEdge);
             const isTrigger = node.category === "trigger";
-            const isAiAgent =
-              !isSubNode &&
-              (node.typeLabel.toLowerCase().includes("agent") ||
-                node.icon === "Bot");
+            const isAiAgent = isNodeAiAgent(node);
+            const isIfNode =
+              node.typeLabel.toLowerCase() === "if" ||
+              node.name.toLowerCase().startsWith("if");
+            const nodeWidth = getNodeWidth(node);
+            const nodeHeight = getNodeHeight(node);
             const isRunningNow = activeStepNodeId === node.id;
             const isCompleted = completedNodeIds.includes(node.id);
 
@@ -842,19 +987,139 @@ export default function WorkflowCanvas({
                   </div>
 
                   {/* Sub-Node Title Underneath */}
-                  <div className="mt-1.5 text-center w-[130px]">
-                    <p className="text-[11px] font-semibold text-slate-200 leading-tight truncate">
+                  <div className="mt-1.5 text-center w-[135px]">
+                    <p className="text-[11px] font-semibold text-slate-100 leading-tight break-words">
                       {node.name}
                     </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {subEdge?.label || node.typeLabel}
+                    <p className="text-[9.5px] text-slate-400 truncate mt-0.5">
+                      {node.typeLabel}
                     </p>
                   </div>
                 </div>
               );
             }
 
-            // 2. RENDER MAIN N8N NODE (Trigger Pill, AI Agent Node with Bottom Ports, or Standard Action Node)
+            // 2. RENDER WIDE N8N AI AGENT / LLM CHAIN NODE (220x92 with bottom Model/Memory/Tool ports)
+            if (isAiAgent) {
+              return (
+                <div
+                  key={node.id}
+                  data-node-interactive="true"
+                  onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                  onClick={() => {
+                    if (!hasMovedRef.current) openNodeModal(node);
+                  }}
+                  style={{
+                    left: `${node.position[0]}px`,
+                    top: `${node.position[1]}px`,
+                    width: `${nodeWidth}px`,
+                    height: `${nodeHeight}px`,
+                  }}
+                  className={`absolute group bg-[#1e2230] border-2 rounded-2xl transition-all cursor-pointer shadow-xl flex flex-col justify-center px-3.5 ${
+                    isRunningNow
+                      ? "border-sky-400 ring-4 ring-sky-500/25 scale-105"
+                      : isCompleted
+                      ? "border-emerald-500/90"
+                      : "border-slate-700 hover:border-slate-400"
+                  }`}
+                >
+                  {/* Floating n8n Hover Action Bar Above Node */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 shadow-xl z-30">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onRunWorkflow) onRunWorkflow();
+                      }}
+                      className="text-emerald-400 hover:text-emerald-300 p-0.5"
+                      title="Execute node"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openNodeModal(node);
+                      }}
+                      className="text-slate-300 hover:text-white p-0.5"
+                      title="Open node parameters"
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteNode(node.id, e)}
+                      className="text-rose-400 hover:text-rose-300 p-0.5"
+                      title="Delete node"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Left Input Port */}
+                  <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-slate-300 border-2 border-[#141720]" />
+
+                  {/* Node Content */}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-md ${style.iconBg}`}
+                    >
+                      <IconComponent className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-white leading-snug line-clamp-2">
+                        {node.name}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        {node.typeLabel}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isCompleted && (
+                    <div className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    </div>
+                  )}
+
+                  {isRunningNow && (
+                    <div className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-md">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    </div>
+                  )}
+
+                  {/* Right Output Port */}
+                  <div className="absolute -right-2 top-1/2 -translate-y-1/2 flex items-center">
+                    <div className="w-3.5 h-3.5 rounded-full bg-slate-300 border-2 border-[#141720]" />
+                  </div>
+
+                  {/* Bottom Diamond Sub-Node Ports on AI Agent Nodes (Chat Model *, Memory, Tool) */}
+                  <div className="absolute -bottom-3.5 left-0 right-0 flex items-center justify-around px-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-2.5 h-2.5 rotate-45 bg-purple-400 border border-[#141720]" />
+                      <span className="text-[8px] text-slate-400 mt-0.5 font-medium">
+                        Model *
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-2.5 h-2.5 rotate-45 bg-cyan-400 border border-[#141720]" />
+                      <span className="text-[8px] text-slate-400 mt-0.5 font-medium">
+                        Memory
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-2.5 h-2.5 rotate-45 bg-emerald-400 border border-[#141720]" />
+                      <span className="text-[8px] text-slate-400 mt-0.5 font-medium">
+                        Tool
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // 3. RENDER AUTHENTIC N8N SQUARE NODE (96x96 icon card with exact node name & type underneath)
             return (
               <div
                 key={node.id}
@@ -866,20 +1131,9 @@ export default function WorkflowCanvas({
                 style={{
                   left: `${node.position[0]}px`,
                   top: `${node.position[1]}px`,
-                  width: `${MAIN_NODE_WIDTH}px`,
-                  height: `${MAIN_NODE_HEIGHT}px`,
+                  width: `${nodeWidth}px`,
                 }}
-                className={`absolute group bg-[#1e2230] border-2 transition-all cursor-pointer shadow-xl flex flex-col justify-center px-3.5 ${
-                  isTrigger
-                    ? "rounded-l-[30px] rounded-r-2xl"
-                    : "rounded-2xl"
-                } ${
-                  isRunningNow
-                    ? "border-sky-400 ring-4 ring-sky-500/25 scale-105"
-                    : isCompleted
-                    ? "border-emerald-500/90"
-                    : "border-slate-700 hover:border-slate-400"
-                }`}
+                className="absolute group flex flex-col items-center cursor-pointer"
               >
                 {/* Floating n8n Hover Action Bar Above Node */}
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 shadow-xl z-30">
@@ -915,92 +1169,100 @@ export default function WorkflowCanvas({
                   </button>
                 </div>
 
-                {/* Left Input Port (for non-trigger nodes) */}
-                {!isTrigger && (
-                  <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-slate-300 border-2 border-[#141720]" />
-                )}
+                {/* 96x96 Square Card (or Trigger Pill) */}
+                <div
+                  style={{
+                    width: `${nodeWidth}px`,
+                    height: `${nodeHeight}px`,
+                  }}
+                  className={`relative bg-[#1e2230] border-2 transition-all shadow-xl flex items-center justify-center ${
+                    isTrigger
+                      ? "rounded-l-[34px] rounded-r-2xl"
+                      : "rounded-2xl"
+                  } ${
+                    isRunningNow
+                      ? "border-sky-400 ring-4 ring-sky-500/25 scale-105"
+                      : isCompleted
+                      ? "border-emerald-500/90"
+                      : "border-slate-700 group-hover:border-slate-400"
+                  }`}
+                >
+                  {/* Left Input Port (for non-trigger nodes) */}
+                  {!isTrigger && (
+                    <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-slate-300 border-2 border-[#141720]" />
+                  )}
 
-                {/* Trigger Lightning Icon Indicator */}
-                {isTrigger && (
-                  <div
-                    className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-orange-500 text-white flex items-center justify-center shadow"
-                    title="Workflow Trigger"
-                  >
-                    <Zap className="w-3 h-3 fill-current" />
-                  </div>
-                )}
+                  {/* Trigger Lightning Icon Indicator */}
+                  {isTrigger && (
+                    <div
+                      className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-orange-500 text-white flex items-center justify-center shadow"
+                      title="Workflow Trigger"
+                    >
+                      <Zap className="w-3 h-3 fill-current" />
+                    </div>
+                  )}
 
-                {/* Node Content */}
-                <div className="flex items-center gap-3">
+                  {/* Centered Node Icon */}
                   <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-md ${style.iconBg}`}
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-md ${style.iconBg}`}
                   >
-                    <IconComponent className="w-5 h-5" />
+                    <IconComponent className="w-6 h-6" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-white truncate">
-                      {node.name}
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                      {node.typeLabel}
-                    </p>
-                  </div>
+
+                  {/* Green Checkmark Badge on Completed Execution (n8n style) */}
+                  {isCompleted && (
+                    <div className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    </div>
+                  )}
+
+                  {/* Spinning Indicator when Executing */}
+                  {isRunningNow && (
+                    <div className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-md">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    </div>
+                  )}
+
+                  {/* Right Output Port(s) */}
+                  {isIfNode ? (
+                    <>
+                      <div
+                        className="absolute -right-2 top-[34%] -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#141720]"
+                        title="true"
+                      />
+                      <div
+                        className="absolute -right-2 top-[68%] -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-rose-400 border-2 border-[#141720]"
+                        title="false"
+                      />
+                    </>
+                  ) : (
+                    <div className="absolute -right-2 top-1/2 -translate-y-1/2 flex items-center">
+                      <div className="w-3.5 h-3.5 rounded-full bg-slate-300 border-2 border-[#141720]" />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConnectFromNodeId(node.id);
+                          setShowNodeCreator(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 w-5 h-5 rounded-md bg-slate-700 hover:bg-sky-500 text-white flex items-center justify-center text-xs shadow"
+                        title="Add connected node"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Green Checkmark Badge on Completed Execution (n8n style) */}
-                {isCompleted && (
-                  <div className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  </div>
-                )}
-
-                {/* Spinning Indicator when Executing */}
-                {isRunningNow && (
-                  <div className="absolute -bottom-2 -right-2 w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-md">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                  </div>
-                )}
-
-                {/* Right Output Port + '+' Add Next Node Handle */}
-                <div className="absolute -right-2 top-1/2 -translate-y-1/2 flex items-center">
-                  <div className="w-3.5 h-3.5 rounded-full bg-slate-300 border-2 border-[#141720]" />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConnectFromNodeId(node.id);
-                      setShowNodeCreator(true);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 w-5 h-5 rounded-md bg-slate-700 hover:bg-sky-500 text-white flex items-center justify-center text-xs shadow"
-                    title="Add connected node"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
+                {/* Exact n8n Node Name & Subtitle Underneath the Square Card */}
+                <div className="mt-2 text-center w-[166px] -mx-[35px]">
+                  <p className="text-[11.5px] font-bold text-slate-100 leading-tight break-words">
+                    {node.name}
+                  </p>
+                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                    {node.typeLabel}
+                  </p>
                 </div>
-
-                {/* Bottom Diamond Sub-Node Ports on AI Agent Nodes (Chat Model *, Memory, Tool) */}
-                {isAiAgent && (
-                  <div className="absolute -bottom-3.5 left-0 right-0 flex items-center justify-around px-3">
-                    <div className="flex flex-col items-center">
-                      <div className="w-2.5 h-2.5 rotate-45 bg-purple-400 border border-[#141720]" />
-                      <span className="text-[8px] text-slate-400 mt-0.5 font-medium">
-                        Model *
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="w-2.5 h-2.5 rotate-45 bg-cyan-400 border border-[#141720]" />
-                      <span className="text-[8px] text-slate-400 mt-0.5 font-medium">
-                        Memory
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className="w-2.5 h-2.5 rotate-45 bg-emerald-400 border border-[#141720]" />
-                      <span className="text-[8px] text-slate-400 mt-0.5 font-medium">
-                        Tool
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -1010,12 +1272,9 @@ export default function WorkflowCanvas({
         <div className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 bg-[#1e2230]/95 backdrop-blur-md border border-slate-700/80 p-1.5 rounded-xl shadow-xl">
           <button
             type="button"
-            onClick={() => {
-              setZoom(0.95);
-              setPan({ x: 30, y: 20 });
-            }}
+            onClick={fitAllNodesInView}
             className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition cursor-pointer"
-            title="Zoom to Fit"
+            title="Zoom to Fit All Nodes"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
@@ -1029,7 +1288,7 @@ export default function WorkflowCanvas({
           </button>
           <button
             type="button"
-            onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))}
+            onClick={() => setZoom((z) => Math.max(0.2, +(z - 0.1).toFixed(2)))}
             className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition cursor-pointer"
             title="Zoom Out"
           >
