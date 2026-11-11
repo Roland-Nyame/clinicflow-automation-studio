@@ -237,11 +237,30 @@ function resolveClinicForN8nWorkflow(
   const lowerName = wfName.toLowerCase();
 
   for (const clinic of db.clinics) {
+    const slugLower = clinic.slug.toLowerCase();
+    const spacedSlug = slugLower.replace(/([a-z])([A-Z])/g, "$1 $2");
     if (
-      lowerName.includes(clinic.slug.toLowerCase()) ||
-      lowerName.includes(clinic.name.toLowerCase())
+      lowerName.includes(slugLower) ||
+      lowerName.includes(clinic.name.toLowerCase()) ||
+      (slugLower === "busybite" && lowerName.includes("busy bite")) ||
+      lowerName.includes(spacedSlug)
     ) {
       return clinic;
+    }
+  }
+
+  // 3b. Check node names and node parameters (e.g. AI Agent systemMessage) for clinic name/slug
+  if (Array.isArray(rawWf.nodes) && rawWf.nodes.length > 0) {
+    const nodesBlob = JSON.stringify(rawWf.nodes).toLowerCase();
+    for (const clinic of db.clinics) {
+      const slugLower = clinic.slug.toLowerCase();
+      if (
+        nodesBlob.includes(slugLower) ||
+        nodesBlob.includes(clinic.name.toLowerCase()) ||
+        (slugLower === "busybite" && nodesBlob.includes("busy bite"))
+      ) {
+        return clinic;
+      }
     }
   }
 
@@ -294,11 +313,12 @@ export async function syncDirectlyFromN8n(): Promise<{
   error?: string;
 }> {
   const db = ensureDb();
-  const activeUrl = (
-    db.engineSettings.engineUrl ||
-    process.env.N8N_BASE_URL ||
-    ""
-  ).trim();
+  const storedUrl = (db.engineSettings.engineUrl || "").trim();
+  const envUrl = (process.env.N8N_BASE_URL || "").trim();
+  const activeUrl =
+    storedUrl && storedUrl !== "http://localhost:5678"
+      ? storedUrl
+      : envUrl || storedUrl;
   const activeKey = (
     db.engineSettings.rawApiKey ||
     process.env.N8N_API_KEY ||
@@ -317,7 +337,7 @@ export async function syncDirectlyFromN8n(): Promise<{
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     const wfRes = await fetch(`${cleanBase}/api/v1/workflows?limit=250`, {
       headers: {
@@ -338,11 +358,39 @@ export async function syncDirectlyFromN8n(): Promise<{
     }
 
     const wfBody = await wfRes.json();
-    const rawWorkflows: RawN8nWorkflow[] = Array.isArray(wfBody?.data)
+    const listedWorkflows: RawN8nWorkflow[] = Array.isArray(wfBody?.data)
       ? wfBody.data
       : Array.isArray(wfBody)
       ? wfBody
       : [];
+
+    // Ensure every workflow has its full `nodes` and `connections` array fetched from n8n
+    const rawWorkflows: RawN8nWorkflow[] = await Promise.all(
+      listedWorkflows.map(async (item) => {
+        if (Array.isArray(item.nodes) && item.nodes.length > 0 && item.connections) {
+          return item;
+        }
+        try {
+          const detailRes = await fetch(
+            `${cleanBase}/api/v1/workflows/${encodeURIComponent(String(item.id))}`,
+            {
+              headers: {
+                "X-N8N-API-KEY": activeKey,
+                Accept: "application/json",
+              },
+              cache: "no-store",
+            }
+          );
+          if (detailRes.ok) {
+            const detailJson = await detailRes.json();
+            return (detailJson?.data || detailJson) as RawN8nWorkflow;
+          }
+        } catch {
+          // Fallback to list item if detail call fails
+        }
+        return item;
+      })
+    );
 
     // Also fetch recent executions from live n8n
     let rawExecutions: RawN8nExecution[] = [];

@@ -64,20 +64,15 @@ const NODE_TYPE_MAPPING: Record<
   string,
   { label: string; category: WhiteLabelNodeCategory; icon: string }
 > = {
-  whatsapp: {
-    label: "WhatsApp Business Gateway",
-    category: "communication",
-    icon: "MessageCircle",
-  },
   whatsapptrigger: {
-    label: "WhatsApp Incoming Trigger",
+    label: "WhatsApp Trigger",
     category: "trigger",
     icon: "MessageCircle",
   },
-  facebook: {
-    label: "Facebook Graph Connector",
+  whatsapp: {
+    label: "WhatsApp Business Cloud",
     category: "communication",
-    icon: "Globe",
+    icon: "MessageCircle",
   },
   facebookleadads: {
     label: "Facebook Lead Ads Trigger",
@@ -85,202 +80,322 @@ const NODE_TYPE_MAPPING: Record<
     icon: "Globe",
   },
   facebooktrigger: {
-    label: "Facebook Messenger Webhook",
+    label: "Facebook Trigger",
     category: "trigger",
     icon: "Globe",
   },
+  facebook: {
+    label: "Facebook Graph API",
+    category: "communication",
+    icon: "Globe",
+  },
   instagram: {
-    label: "Instagram Direct Gateway",
+    label: "Instagram",
     category: "communication",
     icon: "MessageCircle",
   },
-  webhook: {
-    label: "Incoming Webhook Trigger",
-    category: "trigger",
-    icon: "Webhook",
-  },
-  Respondtowebhook: {
-    label: "Webhook Response Dispatcher",
+  respondtowebhook: {
+    label: "Respond to Webhook",
     category: "communication",
     icon: "Webhook",
   },
+  webhook: {
+    label: "Webhook",
+    category: "trigger",
+    icon: "Webhook",
+  },
   scheduletrigger: {
-    label: "Scheduled Cron Trigger",
+    label: "Schedule Trigger",
     category: "trigger",
     icon: "Clock",
   },
   cron: {
-    label: "Scheduled Cron Trigger",
+    label: "Cron Trigger",
     category: "trigger",
     icon: "Clock",
   },
   formtrigger: {
-    label: "Patient Intake Form Trigger",
+    label: "On Form Submission",
     category: "trigger",
     icon: "FileText",
   },
   chattrigger: {
-    label: "Live Chat Message Trigger",
+    label: "When Chat Message Received",
     category: "trigger",
     icon: "MessageSquare",
   },
   manualtrigger: {
-    label: "Manual Portal Trigger",
+    label: "When clicking 'Test workflow'",
     category: "trigger",
     icon: "Play",
   },
+  executeworkflowtrigger: {
+    label: "Execute Workflow Trigger",
+    category: "trigger",
+    icon: "Play",
+  },
+  executeworkflow: {
+    label: "Call Sub-Workflow",
+    category: "logic",
+    icon: "GitBranch",
+  },
+  toolworkflow: {
+    label: "Call Sub-Workflow Tool",
+    category: "logic",
+    icon: "GitBranch",
+  },
   agent: {
-    label: "Autonomous AI Agent",
+    label: "AI Agent",
+    category: "ai",
+    icon: "Bot",
+  },
+  chainllm: {
+    label: "Basic LLM Chain",
+    category: "ai",
+    icon: "Bot",
+  },
+  chainretrievalqa: {
+    label: "Question & Answer Chain",
     category: "ai",
     icon: "Bot",
   },
   lmchatopenai: {
-    label: "AI Language Model (OpenAI)",
+    label: "OpenAI Chat Model",
     category: "ai",
     icon: "Sparkles",
   },
   lmchatanthropic: {
-    label: "AI Language Model (Claude)",
+    label: "Anthropic Chat Model",
     category: "ai",
     icon: "Sparkles",
   },
   lmchatgooglevertex: {
-    label: "AI Language Model (Gemini)",
+    label: "Google Vertex Chat Model",
     category: "ai",
     icon: "Sparkles",
   },
   lmchatgooglegemini: {
-    label: "AI Language Model (Gemini)",
+    label: "Google Gemini Chat Model",
+    category: "ai",
+    icon: "Sparkles",
+  },
+  lmchatgroq: {
+    label: "Groq Chat Model",
+    category: "ai",
+    icon: "Sparkles",
+  },
+  lmchatollama: {
+    label: "Ollama Chat Model",
+    category: "ai",
+    icon: "Sparkles",
+  },
+  embeddingsopenai: {
+    label: "Embeddings OpenAI",
     category: "ai",
     icon: "Sparkles",
   },
   openai: {
-    label: "AI Clinical Assistant",
+    label: "OpenAI",
     category: "ai",
     icon: "Sparkles",
   },
   memorybufferwindow: {
-    label: "Conversation Buffer Memory",
+    label: "Simple Memory",
     category: "database",
     icon: "Database",
   },
   memorypostgreschat: {
-    label: "Persistent Patient Chat Memory",
+    label: "Postgres Chat Memory",
     category: "database",
     icon: "Database",
   },
   memoryredischat: {
-    label: "High-Speed Session Memory",
+    label: "Redis Chat Memory",
+    category: "database",
+    icon: "Database",
+  },
+  vectorstoresupabase: {
+    label: "Supabase Vector Store",
+    category: "database",
+    icon: "Database",
+  },
+  vectorstorepinecone: {
+    label: "Pinecone Vector Store",
+    category: "database",
+    icon: "Database",
+  },
+  vectorstoreqdrant: {
+    label: "Qdrant Vector Store",
+    category: "database",
+    icon: "Database",
+  },
+  vectorstoreinmemory: {
+    label: "In-Memory Vector Store",
     category: "database",
     icon: "Database",
   },
   vectorstore: {
-    label: "Clinic Knowledge Base (RAG)",
+    label: "Vector Store",
     category: "database",
     icon: "Database",
   },
+  outputparserstructured: {
+    label: "Structured Output Parser",
+    category: "ai",
+    icon: "Code",
+  },
+  outputparserautofixing: {
+    label: "Auto-fixing Output Parser",
+    category: "ai",
+    icon: "Code",
+  },
+  mcpclienttool: {
+    label: "MCP Client Tool",
+    category: "integration",
+    icon: "Cpu",
+  },
+  toolcalculator: {
+    label: "Calculator Tool",
+    category: "logic",
+    icon: "Sliders",
+  },
+  toolwikipedia: {
+    label: "Wikipedia Tool",
+    category: "integration",
+    icon: "Globe",
+  },
   httprequest: {
-    label: "External API Connector",
+    label: "HTTP Request",
     category: "integration",
     icon: "Globe",
   },
   postgres: {
-    label: "Clinic SQL Database",
+    label: "Postgres",
     category: "database",
     icon: "Database",
   },
   mysql: {
-    label: "Clinic SQL Database",
+    label: "MySQL",
     category: "database",
     icon: "Database",
   },
   supabase: {
-    label: "Patient Records Vault",
+    label: "Supabase",
     category: "database",
     icon: "Database",
   },
   airtable: {
-    label: "Clinic Records Base",
+    label: "Airtable",
     category: "database",
     icon: "Table",
   },
   googlecalendar: {
-    label: "Clinic Appointment Calendar",
+    label: "Google Calendar",
     category: "crm",
     icon: "Calendar",
   },
   googlesheets: {
-    label: "Clinic Spreadsheet Sync",
+    label: "Google Sheets",
     category: "database",
     icon: "Table",
   },
+  googledocs: {
+    label: "Google Docs",
+    category: "database",
+    icon: "FileText",
+  },
   googledrive: {
-    label: "Clinic Document Storage",
+    label: "Google Drive",
     category: "database",
     icon: "FileText",
   },
   twilio: {
-    label: "Patient SMS Gateway",
+    label: "Twilio",
     category: "communication",
     icon: "MessageSquare",
   },
   gmail: {
-    label: "Clinic Email Dispatcher",
+    label: "Gmail",
     category: "communication",
     icon: "Mail",
   },
   emailsend: {
-    label: "Clinic Email Dispatcher",
+    label: "Send Email",
     category: "communication",
     icon: "Mail",
   },
   slack: {
-    label: "Front-Desk Team Alert",
+    label: "Slack",
     category: "communication",
     icon: "Bell",
   },
   telegram: {
-    label: "Instant Messaging Gateway",
+    label: "Telegram",
     category: "communication",
     icon: "MessageCircle",
   },
   if: {
-    label: "Conditional Decision Router",
+    label: "If",
     category: "logic",
     icon: "GitBranch",
   },
   switch: {
-    label: "Multi-Path Logic Router",
+    label: "Switch",
     category: "logic",
     icon: "Shuffle",
   },
   merge: {
-    label: "Data Stream Merger",
+    label: "Merge",
+    category: "logic",
+    icon: "GitBranch",
+  },
+  splitinbatches: {
+    label: "Loop Over Items",
+    category: "logic",
+    icon: "Shuffle",
+  },
+  splitout: {
+    label: "Split Out",
+    category: "logic",
+    icon: "GitBranch",
+  },
+  aggregate: {
+    label: "Aggregate",
+    category: "logic",
+    icon: "Sliders",
+  },
+  filter: {
+    label: "Filter",
     category: "logic",
     icon: "GitBranch",
   },
   set: {
-    label: "Data Formatter & Mapper",
+    label: "Edit Fields (Set)",
     category: "logic",
     icon: "Sliders",
   },
   code: {
-    label: "Custom Business Rule Engine",
+    label: "Code",
     category: "logic",
     icon: "Code",
   },
   wait: {
-    label: "Timed Delay / Smart Wait",
+    label: "Wait",
     category: "logic",
     icon: "Hourglass",
   },
+  datetime: {
+    label: "Date & Time",
+    category: "logic",
+    icon: "Clock",
+  },
   hubspot: {
-    label: "Patient CRM Sync",
+    label: "HubSpot",
     category: "crm",
     icon: "Users",
   },
   highlevel: {
-    label: "Clinic GoHighLevel CRM",
+    label: "HighLevel",
     category: "crm",
     icon: "Users",
   },
@@ -406,24 +521,43 @@ export function sanitizeParameters(
     const lowerKey = k.toLowerCase();
     if (blockedKeys.some((b) => lowerKey.includes(b))) continue;
     const isLongField = longTextKeys.some((lk) => lowerKey.includes(lk));
-    const maxLen = isLongField ? 12000 : 300;
+    const maxLen = isLongField ? 12000 : 500;
 
     if (typeof v === "string" && v.trim() !== "") {
       safe[k] = scrubBrandStrings(v).slice(0, maxLen);
     } else if (typeof v === "number" || typeof v === "boolean") {
       safe[k] = v;
+    } else if (Array.isArray(v) && v.length > 0) {
+      safe[k] = scrubBrandStrings(JSON.stringify(v)).slice(0, 600);
     } else if (v && typeof v === "object" && !Array.isArray(v)) {
+      const obj = v as Record<string, unknown>;
+      // Handle n8n Resource Locator objects ({ __rl: true, value: "...", cachedResultName: "..." })
+      if ("__rl" in obj && (obj.cachedResultName || obj.value !== undefined)) {
+        const displayVal = String(obj.cachedResultName || obj.value || "");
+        if (displayVal.trim()) {
+          safe[k] = scrubBrandStrings(displayVal).slice(0, maxLen);
+        }
+        continue;
+      }
       // Extract nested n8n options such as parameters.options.systemMessage on AI Agent nodes
-      for (const [subK, subV] of Object.entries(v as Record<string, unknown>)) {
+      for (const [subK, subV] of Object.entries(obj)) {
         const lowerSub = subK.toLowerCase();
         if (blockedKeys.some((b) => lowerSub.includes(b))) continue;
         if (typeof subV === "string" && subV.trim() !== "") {
           const subMax = longTextKeys.some((lk) => lowerSub.includes(lk))
             ? 12000
-            : 300;
+            : 500;
           safe[subK] = scrubBrandStrings(subV).slice(0, subMax);
         } else if (typeof subV === "number" || typeof subV === "boolean") {
           safe[subK] = subV;
+        } else if (Array.isArray(subV) && subV.length > 0) {
+          safe[subK] = scrubBrandStrings(JSON.stringify(subV)).slice(0, 600);
+        } else if (subV && typeof subV === "object" && "value" in (subV as Record<string, unknown>)) {
+          const inner = subV as Record<string, unknown>;
+          const innerVal = String(inner.cachedResultName || inner.value || "");
+          if (innerVal.trim()) {
+            safe[subK] = scrubBrandStrings(innerVal).slice(0, 500);
+          }
         }
       }
     }
@@ -433,7 +567,7 @@ export function sanitizeParameters(
 
 /**
  * Normalizes arbitrary n8n canvas coordinates (which can be negative or large)
- * so they always fit cleanly in the portal's visual canvas.
+ * so they always fit cleanly in the portal's visual canvas without overlapping.
  */
 function normalizePositions(rawNodes: RawN8nNode[]): Array<[number, number]> {
   if (rawNodes.length === 0) return [];
@@ -452,8 +586,8 @@ function normalizePositions(rawNodes: RawN8nNode[]): Array<[number, number]> {
   const minY = Math.min(...ys);
 
   return rawNodes.map((_, i) => [
-    Math.round((xs[i] - minX) * 0.95 + 60),
-    Math.round((ys[i] - minY) * 0.95 + 70),
+    Math.round((xs[i] - minX) * 1.22 + 70),
+    Math.round((ys[i] - minY) * 1.1 + 70),
   ]);
 }
 
